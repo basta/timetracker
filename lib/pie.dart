@@ -50,6 +50,7 @@ class PieChart {
         domainFn: (PieChartModel model, _) => model.name, // name
         measureFn: (PieChartModel model, _) => model.time, // value
         colorFn: (PieChartModel model, _) => model.color, // color
+        labelAccessorFn: (PieChartModel model, _) => model.name
       ),
     ];
     return ret;
@@ -58,7 +59,12 @@ class PieChart {
   charts.PieChart get chart {
     return new charts.PieChart(
       series,
-      animate: true,
+      animate: false,
+      defaultRenderer: charts.ArcRendererConfig(arcRendererDecorators: [
+        new charts.ArcLabelDecorator(
+          labelPosition: charts.ArcLabelPosition.inside
+        )
+      ]),
     );
   }
 

@@ -1,10 +1,13 @@
 import 'package:flutter/foundation.dart';
+import 'package:sqflite/sqflite.dart';
 import "classes.dart";
 
 class UsageNotifier with ChangeNotifier {
-  Map<String, ProcStats> startStats;
-
   Map<String, ProcStats> _stats;
+  List<Use> uses;
+  Database db;
+
+  Map<String, ProcStats> startStats;
 
   Map<String, ProcStats> get stats => _stats;
 
@@ -13,8 +16,12 @@ class UsageNotifier with ChangeNotifier {
     notifyListeners();
   }
 
+  UsageNotifier() {
+
+  }
+
   void updateStats(Use use) {
-    stats
+    _stats
         .putIfAbsent(
             use.processName,
             () => ProcStats(
