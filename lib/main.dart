@@ -164,7 +164,14 @@ class _AppUsageState extends State<AppUsage> {
     final stats = notifier.stats;
 
     _gridItems = [];
-    stats.forEach((key, value) {
+
+    //Sorted keys from stats
+    var statsValue = stats.values.toList();
+
+    //b, a -> descending
+    //a, b -> ascending
+    statsValue.sort((b, a) => a.totalTime.compareTo(b.totalTime));
+    statsValue.forEach((value) {
       _gridItems.add(AppUsageSingle(stat: value));
     });
 
@@ -180,7 +187,7 @@ class _AppUsageState extends State<AppUsage> {
 }
 
 class AppUsageSingle extends StatefulWidget {
-  ProcStats stat;
+  final ProcStats stat;
   AppUsageSingle({this.stat});
   @override
   _AppUsageSingleState createState() => _AppUsageSingleState();
