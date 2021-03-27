@@ -30,7 +30,8 @@ class Use {
         useEnd: row["endTime"]);
   }
 
-  static Future<List<Use>> loadFromDatabase(Database db) async {
+  static Future<List<Use>> loadFromDatabase(Future<Database> dbFuture) async {
+    var db = await dbFuture;
     var iterator = (await db.query("useHistory")).iterator;
     List<Use> uses = [];
 
@@ -44,15 +45,14 @@ class Use {
 }
 
 // * Used for inserting a Use to db
-Future<void> insertUse(Use use, Database database) async {
-  final Database db = await database;
-
-  await db.insert("useHistory", use.toMap(),
-      conflictAlgorithm: ConflictAlgorithm.replace);
+Future<void> insertUse(Use use, Future<Database> database) async {
+  database.then((db) => {
+        db.insert("useHistory", use.toMap(),
+            conflictAlgorithm: ConflictAlgorithm.replace)
+      });
 }
 
 Future<Database> setUpDatabase() async {
-  WidgetsFlutterBinding.ensureInitialized();
   sqfliteFfiInit();
 
   var databaseFactory = databaseFactoryFfi;
@@ -60,7 +60,8 @@ Future<Database> setUpDatabase() async {
       databaseFactory.openDatabase("assets/db.sqlite");
 
   // * create database if it doesn't exist
-  (await database).execute("""
+  try {
+    (await database).execute("""
       CREATE TABLE "useHistory" (
       \"startTime\"	NUMERIC NOT NULL,
       \"endTime\"	NUMERIC NOT NULL,
@@ -69,8 +70,10 @@ Future<Database> setUpDatabase() async {
       \"id\"	INTEGER,
       PRIMARY KEY(\"id\" AUTOINCREMENT))
       """);
-  print("Creating database...");
-
+    print("Creating database...");
+  } catch (e) {
+    print("Database found");
+  }
   return database;
 }
 // return db.execute("""
@@ -94,10 +97,10 @@ class ProcStats {
 
   ProcStats({this.appName, this.processName, this.totalTime});
 
-  static Map<String, ProcStats> multipleFromUses(List<Use> uses) {
+  static Future<Map<String, ProcStats>> multipleFromUses(Future<List<Use>> uses) async {
     Map<String, ProcStats> stats = {};
 
-    uses.forEach((use) {
+    (await uses).forEach((use) {
       String process = use.processName;
       stats
           .putIfAbsent(

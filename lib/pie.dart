@@ -50,6 +50,7 @@ class PieChart {
         domainFn: (PieChartModel model, _) => model.name, // name
         measureFn: (PieChartModel model, _) => model.time, // value
         colorFn: (PieChartModel model, _) => model.color, // color
+        labelAccessorFn: (PieChartModel model, _) => model.name
       ),
     ];
     return ret;
@@ -58,7 +59,12 @@ class PieChart {
   charts.PieChart get chart {
     return new charts.PieChart(
       series,
-      animate: true,
+      animate: false,
+      defaultRenderer: charts.ArcRendererConfig(arcRendererDecorators: [
+        new charts.ArcLabelDecorator(
+          labelPosition: charts.ArcLabelPosition.inside
+        )
+      ]),
     );
   }
 
@@ -83,9 +89,18 @@ class _PieChartWidgetState extends State<PieChartWidget> {
     final stats = notifier.stats;
     var _pieChart = PieChart();
 
-    // * load stats into chart data
-    _pieChart.loadDataFromStats(stats);
+    return FutureBuilder<Map<String, ProcStats>>(
+        future: stats,
+        builder: (context, snapshot) {
+      // * load stats into chart data
+      if (snapshot.hasData) {
+        _pieChart.loadDataFromStats(snapshot.data);
+        return _pieChart.chartWidget;
+      } else {
+        return Text("Chart loading");
+      }
 
-    return _pieChart.chartWidget;
+    });
+
   }
 }
