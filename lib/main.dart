@@ -27,7 +27,6 @@ import 'pie.dart';
 
 // * config constants
 void main() async {
-  initHome();
   runApp(MyApp());
 }
 

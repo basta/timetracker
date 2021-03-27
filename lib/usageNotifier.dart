@@ -3,25 +3,32 @@ import 'package:sqflite/sqflite.dart';
 import "classes.dart";
 
 class UsageNotifier with ChangeNotifier {
-  Map<String, ProcStats> _stats;
-  List<Use> uses;
-  Database db;
+  Future<Map<String, ProcStats>> _stats;
+  Future<List<Use>> uses;
+  Future<Database> _db;
 
   Map<String, ProcStats> startStats;
 
-  Map<String, ProcStats> get stats => _stats;
+  Future<Map<String, ProcStats>> get stats => _stats;
 
-  set stats(Map<String, ProcStats> newStats) {
+  Future<Database> get db {
+    return _db;
+  }
+
+  set stats(Future<Map<String, ProcStats>> newStats) {
     _stats = newStats;
     notifyListeners();
   }
 
-  UsageNotifier() {
 
+  UsageNotifier() {
+    this._db = setUpDatabase();
+    this.uses = Use.loadFromDatabase(db);
+    this.stats = ProcStats.multipleFromUses(uses);
   }
 
-  void updateStats(Use use) {
-    _stats
+  void updateStats(Use use) async {
+    (await _stats)
         .putIfAbsent(
             use.processName,
             () => ProcStats(
@@ -33,7 +40,4 @@ class UsageNotifier with ChangeNotifier {
     notifyListeners();
   }
 
-  UsageNotifier(Map<String, ProcStats> startStats) {
-    _stats = startStats;
-  }
 }
