@@ -7,7 +7,7 @@ class UsageNotifier with ChangeNotifier {
   Future<List<Use>> uses;
   Future<Database> _db;
 
-  Map<String, ProcStats> startStats;
+  bool isBreak = false;
 
   Future<Map<String, ProcStats>> get stats => _stats;
 
@@ -32,11 +32,11 @@ class UsageNotifier with ChangeNotifier {
         .putIfAbsent(
             use.processName,
             () => ProcStats(
-                appName: "TODO",
                 processName: use.processName,
                 totalTime: Duration()))
         .totalTime += Duration(milliseconds: (use.useEnd - use.useStart));
-
+    
+    _stats.then((value) => value[use.processName].updateAppStats(use));
     notifyListeners();
   }
 

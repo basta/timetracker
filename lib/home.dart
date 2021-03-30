@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:timetracker/sideNavigation.dart';
 import 'package:timetracker/usageNotifier.dart';
 import "package:provider/provider.dart";
 import 'package:sqflite/sqflite.dart';
@@ -21,17 +22,26 @@ class Home extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      child: ChangeNotifierProvider(
-        create: (context) => UsageNotifier(),
-        child: Column(
-          children: [
-            CurrentApp(),
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [PieChartWidget(), AppUsage()],
-            )
-          ],
-        ),
+      child: Row(
+        children: [
+          SideNavigation(),
+          Expanded(
+            child: Column(
+              children: [
+                Row(
+                  mainAxisSize: MainAxisSize.max,
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [Column(
+                    children: [
+                      PieChartWidget(),
+                      BreakButton()
+                    ],
+                  ), AppUsage()],
+                )
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -45,6 +55,7 @@ class CurrentApp extends StatefulWidget {
 class _CurrentAppState extends State<CurrentApp> {
   String _currentApp = "";
   String _currentProcess = "";
+
   UsageNotifier notifier;
 
   // * Reads and saves current app every 10 seconds
@@ -76,6 +87,10 @@ class _CurrentAppState extends State<CurrentApp> {
 
           _currentProcess = Process.runSync(
               "ps", ["-p", processPid.toString(), "-o", "comm="]).stdout;
+          
+          // * clean newlines from end
+          _currentApp = _currentApp.replaceAll("\n", "");
+          _currentProcess = _currentProcess.replaceAll("\n", "");
         });
 
         // * Saving into db
@@ -105,21 +120,16 @@ class _CurrentAppState extends State<CurrentApp> {
       _currentApp = "No Application";
     }
 
-    return Align(
-        alignment: Alignment.topCenter,
-        child: Container(
-          child: Column(
-            children: [
-              Column(
-                children: [
-                  Text("Application: $_currentApp"),
-                  Text("Process: $_currentProcess")
-                ],
-              )
-            ],
-          ),
-          color: Colors.amber,
-        ));
+    return Container(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Center(child: Text.rich(TextSpan(text : "Application: $_currentApp"), textAlign: TextAlign.center)),
+          SizedBox(width: 50,),
+          Center(child: Text.rich(TextSpan(text: "Process: $_currentProcess"), textAlign: TextAlign.center))
+        ],
+      ),
+    );
   }
 }
 
@@ -157,11 +167,12 @@ class _AppUsageState extends State<AppUsage> {
           }
 
           return SizedBox(
-            height: 600,
-            width: 600,
+            height: MediaQuery.of(context).size.height - 56,
+            width: MediaQuery.of(context).size.width/2,
             child: GridView.count(
-              crossAxisCount: 4,
+              crossAxisCount: (MediaQuery.of(context).size.width/250).toInt(), // 2 * 100
               children: _gridItems,
+              shrinkWrap: true,
             ),
           );
         });
@@ -185,12 +196,15 @@ class _AppUsageSingleState extends State<AppUsageSingle> {
     return Padding(
       padding: EdgeInsets.all(10),
       child: ElevatedButton(
-        onPressed: () {},
+        onPressed: () {
+          Navigator.push(context, MaterialPageRoute(builder: (context) {
+            return this.widget.stat.appStatsPage();
+          }));
+        },
         child: Container(
             child: Center(
                 child: Column(children: [
           Text("Process: ${widget.stat.processName}"),
-          Text("Application: ${widget.stat.appName}"),
           Text(
               "Total time: ${widget.stat.totalTime.inHours}h ${minutes}m ${seconds}s")
         ]))),

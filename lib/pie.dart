@@ -32,7 +32,7 @@ class PieChart {
         name: "Data 2", time: 10, color: new charts.Color(r: 255, g: 50, b: 50))
   ];
 
-  void loadDataFromStats(Map<String, ProcStats> stats) {
+  void loadDataFromProcStats(Map<String, ProcStats> stats) {
     this.data = [];
     stats.forEach((key, stat) {
       data.add(new PieChartModel(
@@ -42,16 +42,28 @@ class PieChart {
     });
   }
 
+  void loadDataFromAppStats(Map<String, AppStat> stats) {
+    this.data = [];
+    stats.forEach((key, stat) {
+      data.add(new PieChartModel(
+          name: stat.appName,
+          time: stat.totalTime.inSeconds,
+          color: PieChartModel.colorFromString(stat.appName)));
+    });
+  }
+
   List<charts.Series<PieChartModel, String>> get series {
     var ret = [
       new charts.Series(
-        id: "Time",
-        data: data,
-        domainFn: (PieChartModel model, _) => model.name, // name
-        measureFn: (PieChartModel model, _) => model.time, // value
-        colorFn: (PieChartModel model, _) => model.color, // color
-        labelAccessorFn: (PieChartModel model, _) => model.name
-      ),
+          id: "Time",
+          data: data,
+          domainFn: (PieChartModel model, _) => model.name,
+          // name
+          measureFn: (PieChartModel model, _) => model.time,
+          // value
+          colorFn: (PieChartModel model, _) => model.color,
+          // color
+          labelAccessorFn: (PieChartModel model, _) => model.name),
     ];
     return ret;
   }
@@ -62,22 +74,27 @@ class PieChart {
       animate: false,
       defaultRenderer: charts.ArcRendererConfig(arcRendererDecorators: [
         new charts.ArcLabelDecorator(
-          labelPosition: charts.ArcLabelPosition.inside
-        )
+            labelPosition: charts.ArcLabelPosition.inside)
       ]),
     );
   }
 
   Widget get chartWidget {
-    return SizedBox(
-      height: 400,
-      width: 400,
-      child: chart,
+    return Container(
+      child: SizedBox(
+        height: 450,
+        width: 450,
+        child: chart,
+      ),
     );
   }
 }
 
 class PieChartWidget extends StatefulWidget {
+  final Map<String, AppStat> appStats;
+
+  PieChartWidget({this.appStats});
+
   @override
   _PieChartWidgetState createState() => _PieChartWidgetState();
 }
@@ -92,15 +109,17 @@ class _PieChartWidgetState extends State<PieChartWidget> {
     return FutureBuilder<Map<String, ProcStats>>(
         future: stats,
         builder: (context, snapshot) {
-      // * load stats into chart data
-      if (snapshot.hasData) {
-        _pieChart.loadDataFromStats(snapshot.data);
-        return _pieChart.chartWidget;
-      } else {
-        return Text("Chart loading");
-      }
-
-    });
-
+          // * load stats into chart data
+          if (this.widget.appStats != null) {
+            _pieChart.loadDataFromAppStats(this.widget.appStats);
+            return _pieChart.chartWidget;
+          }
+          else if (snapshot.hasData) {
+            _pieChart.loadDataFromProcStats(snapshot.data);
+            return _pieChart.chartWidget;
+          } else  {
+            return Text("Chart loading");
+          }
+        });
   }
 }
