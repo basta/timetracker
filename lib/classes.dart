@@ -179,7 +179,7 @@ class _AppStatWidgetState extends State<AppStatWidget> {
     Future<Map<String, ProcStats>> stats =
         Provider.of<UsageNotifier>(context).stats;
     return Scaffold(
-        appBar: defaultAppBar,
+        appBar: defaultAppBar(),
         body: FutureBuilder<Map<String, ProcStats>>(
             future: stats,
             builder: (context, snapshot) {

@@ -43,7 +43,7 @@ class MyApp extends StatelessWidget {
         child: Navigator(
           pages: [MaterialPage(
             child: Scaffold(
-              appBar: defaultAppBar,
+              appBar: defaultAppBar(isTracking: true),
               body: Home(),
             ),
           )],

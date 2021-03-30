@@ -28,15 +28,29 @@ class Home extends StatelessWidget {
           Expanded(
             child: Column(
               children: [
-                Row(
-                  mainAxisSize: MainAxisSize.max,
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [Column(
-                    children: [
-                      PieChartWidget(),
-                      BreakButton()
-                    ],
-                  ), AppUsage()],
+                Expanded(
+                  child: LayoutBuilder(builder: (context, constraints) {
+                    return Container(
+                      child: Row(
+                        mainAxisSize: MainAxisSize.max,
+                        mainAxisAlignment: MainAxisAlignment.spaceAround,
+                        children: [
+                          Column(
+                            children: [
+                              Expanded(
+                                child: Container(
+                                    width: constraints.maxWidth / 2,
+                                    child: PieChartWidget()),
+                              ),
+                              BreakButton()
+                            ],
+                          ),
+                          SizedBox(
+                              height: constraints.maxHeight, width: constraints.maxWidth/2,child: AppUsage())
+                        ],
+                      ),
+                    );
+                  }),
                 )
               ],
             ),
@@ -48,6 +62,10 @@ class Home extends StatelessWidget {
 }
 
 class CurrentApp extends StatefulWidget {
+  final bool isTracking;
+
+  CurrentApp({this.isTracking = false});
+
   @override
   _CurrentAppState createState() => _CurrentAppState();
 }
@@ -87,27 +105,29 @@ class _CurrentAppState extends State<CurrentApp> {
 
           _currentProcess = Process.runSync(
               "ps", ["-p", processPid.toString(), "-o", "comm="]).stdout;
-          
+
           // * clean newlines from end
           _currentApp = _currentApp.replaceAll("\n", "");
           _currentProcess = _currentProcess.replaceAll("\n", "");
         });
 
-        // * Saving into db
+        // * Saving into db if widget is used for tracking
         //Create the object
-        Use use = Use(
-            appName: _currentApp,
-            processName: _currentProcess,
-            useStart: DateTime.now().millisecondsSinceEpoch - DELAY * 1000,
-            useEnd: DateTime.now().millisecondsSinceEpoch);
+        if (this.widget.isTracking) {
+          Use use = Use(
+              appName: _currentApp,
+              processName: _currentProcess,
+              useStart: DateTime.now().millisecondsSinceEpoch - DELAY * 1000,
+              useEnd: DateTime.now().millisecondsSinceEpoch);
 
-        insertUse(use, database);
+          insertUse(use, database);
 
-        // * add new use to uses
-        uses.then((value) => value.add(use));
+          // * add new use to uses
+          uses.then((value) => value.add(use));
 
-        // * add new use to stats
-        notifier.updateStats(use);
+          // * add new use to stats
+          notifier.updateStats(use);
+        }
       });
     });
   }
@@ -124,9 +144,15 @@ class _CurrentAppState extends State<CurrentApp> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Center(child: Text.rich(TextSpan(text : "Application: $_currentApp"), textAlign: TextAlign.center)),
-          SizedBox(width: 50,),
-          Center(child: Text.rich(TextSpan(text: "Process: $_currentProcess"), textAlign: TextAlign.center))
+          Center(
+              child: Text.rich(TextSpan(text: "Application: $_currentApp"),
+                  textAlign: TextAlign.center)),
+          SizedBox(
+            width: 50,
+          ),
+          Center(
+              child: Text.rich(TextSpan(text: "Process: $_currentProcess"),
+                  textAlign: TextAlign.center))
         ],
       ),
     );
@@ -166,14 +192,10 @@ class _AppUsageState extends State<AppUsage> {
             return Text("Loading data");
           }
 
-          return SizedBox(
-            height: MediaQuery.of(context).size.height - 56,
-            width: MediaQuery.of(context).size.width/2,
-            child: GridView.count(
-              crossAxisCount: (MediaQuery.of(context).size.width/250).toInt(), // 2 * 100
-              children: _gridItems,
-              shrinkWrap: true,
-            ),
+          return GridView.count(
+            crossAxisCount: MediaQuery.of(context).size.width ~/ 250, // 2 * 100
+            children: _gridItems,
+            shrinkWrap: true,
           );
         });
   }

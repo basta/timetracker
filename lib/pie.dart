@@ -79,15 +79,7 @@ class PieChart {
     );
   }
 
-  Widget get chartWidget {
-    return Container(
-      child: SizedBox(
-        height: 450,
-        width: 450,
-        child: chart,
-      ),
-    );
-  }
+  Widget get chartWidget => chart;
 }
 
 class PieChartWidget extends StatefulWidget {
