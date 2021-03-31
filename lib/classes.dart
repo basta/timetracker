@@ -207,22 +207,27 @@ class _AppStatWidgetState extends State<AppStatWidget> {
                   return Center(
                       child: Column(
                     children: [
-                      Row(key: ValueKey("AppListContainer"), children: [
-                        PieChartWidget(
-                          appStats: appStats,
-                        ),
-                        Expanded(
-                          flex: 1,
-                          child: SizedBox(
-                            height: MediaQuery.of(context).size.height - 56,
-                            child: ListView(
-                              shrinkWrap: true,
-                              scrollDirection: Axis.vertical,
-                              children: appStatWidgets,
+                      Expanded(
+                        child: Row(key: ValueKey("AppListContainer"), children: [
+                          SideNavigation(),
+                          // * PieChart
+                          Container(
+                              width: viewportConstraints.maxWidth / 2,
+                              child: PieChartWidget(appStats: appStats,)),
+                          // * AppStats list
+                          Expanded(
+                            flex: 1,
+                            child: SizedBox(
+                              height: MediaQuery.of(context).size.height - 56,
+                              child: ListView(
+                                shrinkWrap: true,
+                                scrollDirection: Axis.vertical,
+                                children: appStatWidgets,
+                              ),
                             ),
-                          ),
-                        )
-                      ]),
+                          )
+                        ]),
+                      ),
                     ],
                   ));
                 });
@@ -247,6 +252,7 @@ class _AppStatWidgetSingleState extends State<AppStatWidgetSingle> {
   Widget build(BuildContext context) {
     var totalTime = this.widget.appStat.totalTime;
     var colorScheme = Theme.of(context).colorScheme;
+    var textTheme = Theme.of(context).textTheme;
     return Container(
         color: colorScheme.primary,
         margin: EdgeInsets.all(10),

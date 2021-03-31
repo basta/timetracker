@@ -1,5 +1,9 @@
+import 'dart:math';
+
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:timetracker/sideNavigation.dart';
+import 'package:timetracker/theme.dart';
 import 'package:timetracker/usageNotifier.dart';
 import "package:provider/provider.dart";
 import 'package:sqflite/sqflite.dart';
@@ -46,7 +50,9 @@ class Home extends StatelessWidget {
                             ],
                           ),
                           SizedBox(
-                              height: constraints.maxHeight, width: constraints.maxWidth/2,child: AppUsage())
+                              height: constraints.maxHeight,
+                              width: constraints.maxWidth / 2,
+                              child: AppUsage())
                         ],
                       ),
                     );
@@ -94,17 +100,22 @@ class _CurrentAppState extends State<CurrentApp> {
         // * Setting the state of the app
         setState(() {
           _currentApp =
-              Process.runSync("xdotool", ["getwindowfocus", "getwindowname"])
+              Process
+                  .runSync("xdotool", ["getwindowfocus", "getwindowname"])
                   .stdout;
 
           // * Get process PID
-          int processPid = int.parse(Process.runSync(
+          int processPid = int.parse(Process
+              .runSync(
             "xdotool",
             ["getwindowfocus", "getwindowpid"],
-          ).stdout);
+          )
+              .stdout);
 
-          _currentProcess = Process.runSync(
-              "ps", ["-p", processPid.toString(), "-o", "comm="]).stdout;
+          _currentProcess = Process
+              .runSync(
+              "ps", ["-p", processPid.toString(), "-o", "comm="])
+              .stdout;
 
           // * clean newlines from end
           _currentApp = _currentApp.replaceAll("\n", "");
@@ -117,8 +128,12 @@ class _CurrentAppState extends State<CurrentApp> {
           Use use = Use(
               appName: _currentApp,
               processName: _currentProcess,
-              useStart: DateTime.now().millisecondsSinceEpoch - DELAY * 1000,
-              useEnd: DateTime.now().millisecondsSinceEpoch);
+              useStart: DateTime
+                  .now()
+                  .millisecondsSinceEpoch - DELAY * 1000,
+              useEnd: DateTime
+                  .now()
+                  .millisecondsSinceEpoch);
 
           insertUse(use, database);
 
@@ -193,7 +208,10 @@ class _AppUsageState extends State<AppUsage> {
           }
 
           return GridView.count(
-            crossAxisCount: MediaQuery.of(context).size.width ~/ 250, // 2 * 100
+            crossAxisCount: MediaQuery
+                .of(context)
+                .size
+                .width ~/ 300, // 2 * 100
             children: _gridItems,
             shrinkWrap: true,
           );
@@ -213,24 +231,123 @@ class AppUsageSingle extends StatefulWidget {
 class _AppUsageSingleState extends State<AppUsageSingle> {
   @override
   Widget build(BuildContext context) {
-    int minutes = widget.stat.totalTime.inMinutes % 60;
-    int seconds = widget.stat.totalTime.inSeconds % 60;
-    return Padding(
-      padding: EdgeInsets.all(10),
-      child: ElevatedButton(
-        onPressed: () {
-          Navigator.push(context, MaterialPageRoute(builder: (context) {
-            return this.widget.stat.appStatsPage();
-          }));
-        },
-        child: Container(
-            child: Center(
-                child: Column(children: [
-          Text("Process: ${widget.stat.processName}"),
-          Text(
-              "Total time: ${widget.stat.totalTime.inHours}h ${minutes}m ${seconds}s")
-        ]))),
-      ),
+    String hours = (widget.stat.totalTime.inHours % 60).toString();
+    if (hours.length < 2) {
+      hours = "0" + hours;
+    }
+
+    String minutes = (widget.stat.totalTime.inMinutes % 60).toString();
+    if (minutes.length < 2) {
+      minutes = "0" + minutes;
+    }
+
+    String seconds = (widget.stat.totalTime.inSeconds % 60).toString();
+    if (seconds.length < 2) {
+      seconds = "0" + seconds;
+    }
+
+    TextTheme textTheme = Theme
+        .of(context)
+        .textTheme;
+    ColorScheme colorScheme = Theme
+        .of(context)
+        .colorScheme;
+    return Container(
+      margin: EdgeInsets.all(10),
+      child: Container(
+          color: Theme
+              .of(context)
+              .colorScheme
+              .primary,
+          child: Center(
+              child: Column(children: [
+                Text(
+                  "Process:",
+                  style: textTheme.caption,
+                ),
+                Container(
+                    width: double.infinity,
+                    margin: EdgeInsets.symmetric(horizontal: 10),
+                    padding: EdgeInsets.symmetric(vertical: 5),
+                    color: colorScheme.secondary,
+                    child: Center(
+                      child: Text(
+                        "${widget.stat.processName}",
+                        style: textTheme.bodyText2,
+                      ),
+                    )),
+                Container(
+                    width: double.infinity,
+                    margin: EdgeInsets.symmetric(horizontal: 10),
+                    padding: EdgeInsets.symmetric(vertical: 5),
+                    child: Center(
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Container(
+                              padding: EdgeInsets.all(2),
+                              color: colorScheme.secondary,
+                              margin: EdgeInsets.symmetric(horizontal: 2),
+                              child: Text("$hours",
+                                  style: textTheme.bodyText2.copyWith(
+                                      fontSize: 19)),
+                            ),
+                            Text(
+                              ":",
+                              style: textTheme.bodyText2,
+                            ),
+                            Container(
+                              padding: EdgeInsets.all(2),
+                              color: colorScheme.secondary,
+                              margin: EdgeInsets.symmetric(horizontal: 2),
+                              child: Text("$minutes",
+                                  style: textTheme.bodyText2.copyWith(
+                                      fontSize: 19)),
+                            ),
+                            Text(":", style: textTheme.bodyText2),
+                            Container(
+                              padding: EdgeInsets.all(2),
+                              color: colorScheme.secondary,
+                              margin: EdgeInsets.symmetric(horizontal: 2),
+                              child: Text("$seconds",
+                                  style: textTheme.bodyText2.copyWith(
+                                      fontSize: 19)),
+                            )
+                          ],
+                        ))),
+                Expanded(
+                  child: FittedBox(
+                    child: Container(
+                      alignment: Alignment.bottomCenter,
+                      margin: EdgeInsets.symmetric(horizontal: 10),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          IconButton(
+                              icon: Icon(Icons.read_more),
+                              color: colorScheme.onPrimary,
+                              onPressed: () {
+                                Navigator.push(context,
+                                    MaterialPageRoute(builder: (context) {
+                                      return this.widget.stat.appStatsPage();
+                                    }));
+                              }),
+                          IconButton(
+                              color: colorScheme.onPrimary,
+                              icon: Icon(Icons.show_chart),
+                              onPressed: () {}),
+                          IconButton(
+                              color: colorScheme.onPrimary,
+                              icon: Icon(
+                                Icons.close,
+                              ),
+                              onPressed: () {}),
+                        ],
+                      ),
+                    ),
+                  ),
+                )
+              ]))),
     );
   }
 }
