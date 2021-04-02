@@ -7,6 +7,7 @@ import 'package:timetracker/theme.dart';
 import 'package:timetracker/usageNotifier.dart';
 import "package:provider/provider.dart";
 import 'package:sqflite/sqflite.dart';
+import "package:collection/collection.dart";
 
 import 'classes.dart';
 import 'package:timetracker/pie.dart';
@@ -16,7 +17,8 @@ import 'dart:developer';
 import 'dart:io';
 
 // * constants definitions
-const DELAY = 1;
+const ACTIVITY_DELAY = 1;
+const MOUSE_DELAY = 60;
 
 class Home extends StatelessWidget {
   const Home({
@@ -42,17 +44,12 @@ class Home extends StatelessWidget {
                           Column(
                             children: [
                               Expanded(
-                                child: Container(
-                                    width: constraints.maxWidth / 2,
-                                    child: PieChartWidget()),
+                                child: Container(width: constraints.maxWidth / 2, child: PieChartWidget()),
                               ),
                               BreakButton()
                             ],
                           ),
-                          SizedBox(
-                              height: constraints.maxHeight,
-                              width: constraints.maxWidth / 2,
-                              child: AppUsage())
+                          SizedBox(height: constraints.maxHeight, width: constraints.maxWidth / 2, child: AppUsage())
                         ],
                       ),
                     );
@@ -79,6 +76,9 @@ class CurrentApp extends StatefulWidget {
 class _CurrentAppState extends State<CurrentApp> {
   String _currentApp = "";
   String _currentProcess = "";
+  List<int> _lastMousePos = [0, 0];
+  DateTime _lastMouseMovement;
+  bool _isActive = true;
 
   UsageNotifier notifier;
 
@@ -92,30 +92,46 @@ class _CurrentAppState extends State<CurrentApp> {
       Future<Database> database = notifier.db;
       Future<List<Use>> uses = notifier.uses;
 
-      Timer.periodic(Duration(seconds: DELAY), (timer) {
+      Timer.periodic(Duration(seconds: ACTIVITY_DELAY), (timer) {
         if (!this.mounted) {
+          return;
+        }
+
+        // * Check for activity
+        print(Process.runSync("xdotool", ["getmouselocation"]).stderr);
+        String mouseLocationString = Process.runSync("xdotool", ["getmouselocation"]).stdout;
+        // Parse mouse location string
+        var mouseLocationList = mouseLocationString.split(" ");
+        var x = mouseLocationList[0];
+        var y = mouseLocationList[1];
+        List<int> mousePos = [int.parse(x.split(":")[1]), int.parse(y.split(":")[1])];
+
+        // * Update mouse info and if inactivity too long, stop tracking
+        if (!ListEquality().equals(mousePos, _lastMousePos)) {
+          _lastMousePos = mousePos;
+          _lastMouseMovement = DateTime.now();
+        } else if (_lastMouseMovement.difference(DateTime.now()).inSeconds < -MOUSE_DELAY) {
+          setState(() {
+            _isActive = false;
+          });
+          notifier.isActive = false;
           return;
         }
 
         // * Setting the state of the app
         setState(() {
-          _currentApp =
-              Process
-                  .runSync("xdotool", ["getwindowfocus", "getwindowname"])
-                  .stdout;
+          _isActive = true;
+          notifier.isActive = true;
+
+          _currentApp = Process.runSync("xdotool", ["getwindowfocus", "getwindowname"]).stdout;
 
           // * Get process PID
-          int processPid = int.parse(Process
-              .runSync(
+          int processPid = int.parse(Process.runSync(
             "xdotool",
             ["getwindowfocus", "getwindowpid"],
-          )
-              .stdout);
+          ).stdout);
 
-          _currentProcess = Process
-              .runSync(
-              "ps", ["-p", processPid.toString(), "-o", "comm="])
-              .stdout;
+          _currentProcess = Process.runSync("ps", ["-p", processPid.toString(), "-o", "comm="]).stdout;
 
           // * clean newlines from end
           _currentApp = _currentApp.replaceAll("\n", "");
@@ -128,12 +144,8 @@ class _CurrentAppState extends State<CurrentApp> {
           Use use = Use(
               appName: _currentApp,
               processName: _currentProcess,
-              useStart: DateTime
-                  .now()
-                  .millisecondsSinceEpoch - DELAY * 1000,
-              useEnd: DateTime
-                  .now()
-                  .millisecondsSinceEpoch);
+              useStart: DateTime.now().millisecondsSinceEpoch - ACTIVITY_DELAY * 1000,
+              useEnd: DateTime.now().millisecondsSinceEpoch);
 
           insertUse(use, database);
 
@@ -155,19 +167,27 @@ class _CurrentAppState extends State<CurrentApp> {
       _currentApp = "No Application";
     }
 
+    // Widget for showing if app detects presence of a user
+    Widget activityWidget;
+    if (_isActive) {
+      activityWidget =
+          Text.rich(TextSpan(text: "ACTIVE"), style: TextStyle(color: Colors.green), textAlign: TextAlign.center);
+    } else {
+      activityWidget =
+          Text.rich(TextSpan(text: "AWAY"), style: TextStyle(color: Colors.red), textAlign: TextAlign.center);
+    }
+
     return Container(
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Center(
-              child: Text.rich(TextSpan(text: "Application: $_currentApp"),
-                  textAlign: TextAlign.center)),
+          Center(child: activityWidget,),
+          SizedBox(width: 50,),
+          Center(child: Text.rich(TextSpan(text: "Application: $_currentApp"), textAlign: TextAlign.center)),
           SizedBox(
             width: 50,
           ),
-          Center(
-              child: Text.rich(TextSpan(text: "Process: $_currentProcess"),
-                  textAlign: TextAlign.center))
+          Center(child: Text.rich(TextSpan(text: "Process: $_currentProcess"), textAlign: TextAlign.center))
         ],
       ),
     );
@@ -208,10 +228,7 @@ class _AppUsageState extends State<AppUsage> {
           }
 
           return GridView.count(
-            crossAxisCount: MediaQuery
-                .of(context)
-                .size
-                .width ~/ 300, // 2 * 100
+            crossAxisCount: MediaQuery.of(context).size.width ~/ 300, // 2 * 100
             children: _gridItems,
             shrinkWrap: true,
           );
@@ -246,108 +263,94 @@ class _AppUsageSingleState extends State<AppUsageSingle> {
       seconds = "0" + seconds;
     }
 
-    TextTheme textTheme = Theme
-        .of(context)
-        .textTheme;
-    ColorScheme colorScheme = Theme
-        .of(context)
-        .colorScheme;
+    TextTheme textTheme = Theme.of(context).textTheme;
+    ColorScheme colorScheme = Theme.of(context).colorScheme;
     return Container(
       margin: EdgeInsets.all(10),
       child: Container(
-          color: Theme
-              .of(context)
-              .colorScheme
-              .primary,
+          color: Theme.of(context).colorScheme.primary,
           child: Center(
               child: Column(children: [
-                Text(
-                  "Process:",
-                  style: textTheme.caption,
-                ),
-                Container(
-                    width: double.infinity,
-                    margin: EdgeInsets.symmetric(horizontal: 10),
-                    padding: EdgeInsets.symmetric(vertical: 5),
-                    color: colorScheme.secondary,
-                    child: Center(
-                      child: Text(
-                        "${widget.stat.processName}",
-                        style: textTheme.bodyText2,
-                      ),
-                    )),
-                Container(
-                    width: double.infinity,
-                    margin: EdgeInsets.symmetric(horizontal: 10),
-                    padding: EdgeInsets.symmetric(vertical: 5),
-                    child: Center(
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Container(
-                              padding: EdgeInsets.all(2),
-                              color: colorScheme.secondary,
-                              margin: EdgeInsets.symmetric(horizontal: 2),
-                              child: Text("$hours",
-                                  style: textTheme.bodyText2.copyWith(
-                                      fontSize: 19)),
-                            ),
-                            Text(
-                              ":",
-                              style: textTheme.bodyText2,
-                            ),
-                            Container(
-                              padding: EdgeInsets.all(2),
-                              color: colorScheme.secondary,
-                              margin: EdgeInsets.symmetric(horizontal: 2),
-                              child: Text("$minutes",
-                                  style: textTheme.bodyText2.copyWith(
-                                      fontSize: 19)),
-                            ),
-                            Text(":", style: textTheme.bodyText2),
-                            Container(
-                              padding: EdgeInsets.all(2),
-                              color: colorScheme.secondary,
-                              margin: EdgeInsets.symmetric(horizontal: 2),
-                              child: Text("$seconds",
-                                  style: textTheme.bodyText2.copyWith(
-                                      fontSize: 19)),
-                            )
-                          ],
-                        ))),
-                Expanded(
-                  child: FittedBox(
-                    child: Container(
-                      alignment: Alignment.bottomCenter,
-                      margin: EdgeInsets.symmetric(horizontal: 10),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          IconButton(
-                              icon: Icon(Icons.read_more),
-                              color: colorScheme.onPrimary,
-                              onPressed: () {
-                                Navigator.push(context,
-                                    MaterialPageRoute(builder: (context) {
-                                      return this.widget.stat.appStatsPage();
-                                    }));
-                              }),
-                          IconButton(
-                              color: colorScheme.onPrimary,
-                              icon: Icon(Icons.show_chart),
-                              onPressed: () {}),
-                          IconButton(
-                              color: colorScheme.onPrimary,
-                              icon: Icon(
-                                Icons.close,
-                              ),
-                              onPressed: () {}),
-                        ],
-                      ),
-                    ),
+            Text(
+              "Process:",
+              style: textTheme.caption,
+            ),
+            Container(
+                width: double.infinity,
+                margin: EdgeInsets.symmetric(horizontal: 10),
+                padding: EdgeInsets.symmetric(vertical: 5),
+                color: colorScheme.secondary,
+                child: Center(
+                  child: Text(
+                    "${widget.stat.processName}",
+                    style: textTheme.bodyText2,
                   ),
-                )
-              ]))),
+                )),
+            Container(
+                width: double.infinity,
+                margin: EdgeInsets.symmetric(horizontal: 10),
+                padding: EdgeInsets.symmetric(vertical: 5),
+                child: Center(
+                    child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Container(
+                      padding: EdgeInsets.all(2),
+                      color: colorScheme.secondary,
+                      margin: EdgeInsets.symmetric(horizontal: 2),
+                      child: Text("$hours", style: textTheme.bodyText2.copyWith(fontSize: 19)),
+                    ),
+                    Text(
+                      ":",
+                      style: textTheme.bodyText2,
+                    ),
+                    Container(
+                      padding: EdgeInsets.all(2),
+                      color: colorScheme.secondary,
+                      margin: EdgeInsets.symmetric(horizontal: 2),
+                      child: Text("$minutes", style: textTheme.bodyText2.copyWith(fontSize: 19)),
+                    ),
+                    Text(":", style: textTheme.bodyText2),
+                    Container(
+                      padding: EdgeInsets.all(2),
+                      color: colorScheme.secondary,
+                      margin: EdgeInsets.symmetric(horizontal: 2),
+                      child: Text("$seconds", style: textTheme.bodyText2.copyWith(fontSize: 19)),
+                    )
+                  ],
+                ))),
+            Expanded(
+              child: FittedBox(
+                child: Container(
+                  alignment: Alignment.bottomCenter,
+                  margin: EdgeInsets.symmetric(horizontal: 10),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      IconButton(
+                          icon: Icon(Icons.read_more),
+                          color: colorScheme.onPrimary,
+                          onPressed: () {
+                            Navigator.push(
+                                context,
+                                PageRouteBuilder(
+                                    pageBuilder: (context, animation, secondaryAnimation) =>
+                                        this.widget.stat.appStatsPage(),
+                                    transitionDuration: Duration(seconds: 0)));
+                          }),
+                      IconButton(color: colorScheme.onPrimary, icon: Icon(Icons.show_chart), onPressed: () {}),
+                      IconButton(
+                          color: colorScheme.onPrimary,
+                          icon: Icon(
+                            Icons.close,
+                          ),
+                          onPressed: () {}),
+                    ],
+                  ),
+                ),
+              ),
+            )
+          ]))),
     );
   }
 }

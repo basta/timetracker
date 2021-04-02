@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:timetracker/settings.dart';
 
 class SideNavigation extends StatefulWidget {
   @override
@@ -13,9 +14,25 @@ class _SideNavigationState extends State<SideNavigation> {
       color: colorScheme.secondary,
       child: Column(
         children: [
-          SideNavigationButton(icon: Icons.home, onPressed: () {},),
-          SideNavigationButton(icon: Icons.bar_chart),
-          SideNavigationButton(icon: Icons.settings)
+          SideNavigationButton(
+            icon: Icons.home,
+            onPressed: () {},
+          ),
+          SideNavigationButton(
+            icon: Icons.bar_chart,
+            onPressed: () {},
+          ),
+          SideNavigationButton(
+            icon: Icons.settings,
+            onPressed: () {
+              print("Opening settings");
+              Navigator.push(context, PageRouteBuilder(
+                pageBuilder: (context, animation, secondaryAnimation) {
+                  return SettingsPage();
+                },
+              ));
+            },
+          )
         ],
       ),
     );
@@ -39,11 +56,12 @@ class _SideNavigationButtonState extends State<SideNavigationButton> {
     return Container(
         decoration: BoxDecoration(
             border: Border(
-                top: BorderSide(width: 2, color: colorScheme.onPrimary),),
-                color: colorScheme.primary),
+              top: BorderSide(width: 2, color: colorScheme.onPrimary),
+            ),
+            color: colorScheme.primary),
         child: IconButton(
             color: colorScheme.onPrimary,
             icon: Icon(this.widget.icon),
-            onPressed: () {}));
+            onPressed: this.widget.onPressed));
   }
 }

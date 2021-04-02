@@ -7,6 +7,7 @@ class UsageNotifier with ChangeNotifier {
   Future<List<Use>> uses;
   Future<Database> _db;
 
+  bool isActive = false;
   bool isBreak = false;
 
   Future<Map<String, ProcStats>> get stats => _stats;
