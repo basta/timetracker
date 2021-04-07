@@ -22,20 +22,12 @@ class Use {
   Use({this.processName, this.appName, this.useStart, this.useEnd});
 
   Map<String, dynamic> toMap() {
-    return {
-      "processName": processName,
-      "appName": appName,
-      "startTime": useStart,
-      "endTime": useEnd
-    };
+    return {"processName": processName, "appName": appName, "startTime": useStart, "endTime": useEnd};
   }
 
   static Use fromDbRow(Map<String, Object> row) {
     return new Use(
-        appName: row["appName"],
-        processName: row["processName"],
-        useStart: row["startTime"],
-        useEnd: row["endTime"]);
+        appName: row["appName"], processName: row["processName"], useStart: row["startTime"], useEnd: row["endTime"]);
   }
 
   static Future<List<Use>> loadFromDatabase(Future<Database> dbFuture) async {
@@ -54,22 +46,18 @@ class Use {
 
 // * Used for inserting a Use to db
 Future<void> insertUse(Use use, Future<Database> database) async {
-  database.then((db) => {
-        db.insert("useHistory", use.toMap(),
-            conflictAlgorithm: ConflictAlgorithm.replace)
-      });
+  database.then((db) => {db.insert("useHistory", use.toMap(), conflictAlgorithm: ConflictAlgorithm.replace)});
 }
 
 Future<Database> setUpDatabase() async {
   sqfliteFfiInit();
 
   var databaseFactory = databaseFactoryFfi;
-  final Future<Database> database =
-      databaseFactory.openDatabase("assets/db.sqlite");
+  final Future<Database> database = databaseFactory.openDatabase("assets/db.sqlite");
 
-  // * create database if it doesn't exist
+  // * create uses database if it doesn't exist
   try {
-    (await database).execute("""
+    await (await database).execute("""
       CREATE TABLE "useHistory" (
       \"startTime\"	NUMERIC NOT NULL,
       \"endTime\"	NUMERIC NOT NULL,
@@ -80,7 +68,26 @@ Future<Database> setUpDatabase() async {
       """);
     print("Creating database...");
   } catch (e) {
-    print("Database found");
+    print("Use table found");
+  }
+
+  // * create settings database if it doesn't exist
+  try {
+    await ((await database).execute("""
+      CREATE TABLE "appSettings" (
+      "key" TEXT,
+      "value" TEXT,
+      PRIMARY KEY("key"))
+    """));
+  } catch (e) {
+    print("Settings table found: $e");
+  }
+
+  // * fill settings with default values if empty
+  if ((await (await database).query("appSettings")).isEmpty) {
+    (await database).insert("appSettings", {"key": "detectionInterval", "value": "1"});
+    (await database).insert("appSettings", {"key": "mouseDelay", "value": "60"});
+    (await database).insert("appSettings", {"key": "minimalSlice", "value": "5"});
   }
   return database;
 }
@@ -98,19 +105,32 @@ class ProcStats {
   ProcStats({this.processName, this.totalTime});
 
   // * Create a map of ProcStats from uses
-  static Future<Map<String, ProcStats>> multipleFromUses(
-      Future<List<Use>> uses) async {
+  static Future<Map<String, ProcStats>> multipleFromUses(Future<List<Use>> uses,
+      {DateTimeRange timeRange, String textFilter}) async {
     Map<String, ProcStats> stats = {};
 
     (await uses).forEach((use) {
+      // * remove uses outside of timeRange
+      if (timeRange != null) {
+        DateTimeRange useDateTime = DateTimeRange(
+            start: DateTime.fromMillisecondsSinceEpoch(use.useStart),
+            end: DateTime.fromMillisecondsSinceEpoch(use.useEnd));
+        if (timeRange.start.isAfter(useDateTime.start) || timeRange.end.isBefore(useDateTime.end)) {
+          return;
+        }
+      }
+
       String process = use.processName;
+
+      if (textFilter != null) {
+        if (!process.toLowerCase().contains(textFilter.toLowerCase())) {
+          return;
+        }
+      }
+
       // * create ProcStat
-      stats
-          .putIfAbsent(
-              process,
-              () => ProcStats(
-                  processName: use.processName, totalTime: Duration()))
-          .totalTime += Duration(milliseconds: (use.useEnd - use.useStart));
+      stats.putIfAbsent(process, () => ProcStats(processName: use.processName, totalTime: Duration())).totalTime +=
+          Duration(milliseconds: (use.useEnd - use.useStart));
 
       // * create AppStats for ProcStat
       stats[process].updateAppStats(use);
@@ -121,12 +141,8 @@ class ProcStats {
 
   // * Takes a use and adds it to the corresponding AppStat
   void updateAppStats(Use use) {
-    appStats
-        .putIfAbsent(
-            use.appName,
-            () =>
-                AppStat(appName: use.appName, totalTime: Duration(seconds: 0)))
-        .totalTime += Duration(milliseconds: use.useEnd - use.useStart);
+    appStats.putIfAbsent(use.appName, () => AppStat(appName: use.appName, totalTime: Duration(seconds: 0))).totalTime +=
+        Duration(milliseconds: use.useEnd - use.useStart);
   }
 
   Widget appStatsPage() {
@@ -142,8 +158,7 @@ class AppStat {
   AppStat({this.totalTime, this.appName});
 
   ///Create a list of AppStats from list of uses with the same procName
-  static Map<String, AppStat> multipleFromUses(List<Use> uses,
-      {String procName}) {
+  static Map<String, AppStat> multipleFromUses(List<Use> uses, {String procName}) {
     Map<String, AppStat> appStats;
     // * create appStats for every use
     uses.forEach((use) {
@@ -152,10 +167,7 @@ class AppStat {
         return;
       } else {
         appStats
-            .putIfAbsent(
-                use.appName,
-                () => AppStat(
-                    appName: use.appName, totalTime: Duration(seconds: 0)))
+            .putIfAbsent(use.appName, () => AppStat(appName: use.appName, totalTime: Duration(seconds: 0)))
             .totalTime += Duration(milliseconds: use.useEnd - use.useStart);
       }
     });
@@ -175,9 +187,9 @@ class AppStatWidget extends StatefulWidget {
 class _AppStatWidgetState extends State<AppStatWidget> {
   @override
   Widget build(BuildContext context) {
-    var _listViewChildren = [];
-    Future<Map<String, ProcStats>> stats =
-        Provider.of<UsageNotifier>(context).stats;
+    String chartType = "pie";
+
+    Future<Map<String, ProcStats>> stats = Provider.of<UsageNotifier>(context).stats;
     return Scaffold(
         appBar: defaultAppBar(),
         body: FutureBuilder<Map<String, ProcStats>>(
@@ -202,18 +214,64 @@ class _AppStatWidgetState extends State<AppStatWidget> {
                   ));
                 });
 
-                return LayoutBuilder(
-                    builder: (BuildContext context, viewportConstraints) {
+                return LayoutBuilder(builder: (BuildContext context, viewportConstraints) {
+                  Widget chart;
+                  if (chartType == "pie") {
+                    // * PieChart
+                    chart = Container(
+                        width: viewportConstraints.maxWidth / 2,
+                        child: PieChartWidget(
+                          appStats: appStats,
+                        ));
+                  } else if (chartType == "time") {
+                    chart = Text("Not yet implemented time chart");
+                  } else {
+                    chart = Text("Unknown chart type requested");
+                  }
+
+                  var boxDecorations = BoxDecoration(
+
+                  );
+
                   return Center(
                       child: Column(
                     children: [
                       Expanded(
                         child: Row(key: ValueKey("AppListContainer"), children: [
                           SideNavigation(),
-                          // * PieChart
-                          Container(
-                              width: viewportConstraints.maxWidth / 2,
-                              child: PieChartWidget(appStats: appStats,)),
+                          Expanded(
+                            child: Column(
+                              children: [
+                                Expanded(child: chart),
+                                PieFooter(
+                                  child: Container(
+                                    decoration: BoxDecoration(border: Border.all(
+                                      color: Theme.of(context).colorScheme.onSecondary,
+                                      width: 4
+                                    )),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.max,
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Expanded(
+                                            child: Container(
+                                                child: IconButton(
+                                                    icon: Icon(Icons.pie_chart, color: Colors.white), onPressed: () {}))),
+                                        Expanded(
+                                            child: Container(
+                                                child: IconButton(
+                                                    icon: Icon(
+                                                      Icons.show_chart,
+                                                      color: Colors.white,
+                                                    ),
+                                                    onPressed: () {})))
+                                      ],
+                                    ),
+                                  ),
+                                )
+                              ],
+                            ),
+                          ),
                           // * AppStats list
                           Expanded(
                             flex: 1,
@@ -257,8 +315,7 @@ class _AppStatWidgetSingleState extends State<AppStatWidgetSingle> {
         color: colorScheme.primary,
         margin: EdgeInsets.all(10),
         padding: EdgeInsets.all(10),
-        child:
-            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+        child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
           Align(
               alignment: Alignment.center,
               child: Text(
@@ -295,9 +352,7 @@ class _BreakButtonState extends State<BreakButton> {
         style: TextStyle(fontSize: 20),
       ));
     } else {
-      buttonChild = Container(
-          color: Colors.red,
-          child: Text("Resume work", style: TextStyle(fontSize: 20)));
+      buttonChild = Container(color: Colors.red, child: Text("Resume work", style: TextStyle(fontSize: 20)));
     }
 
     return ElevatedButton(

@@ -23,40 +23,62 @@ class PieChartModel {
 }
 
 class PieChart {
-  List<PieChartModel> data = [
-    PieChartModel(
-        name: "Data 1",
-        time: 20,
-        color: new charts.Color(r: 50, g: 50, b: 255)),
-    PieChartModel(
-        name: "Data 2", time: 10, color: new charts.Color(r: 255, g: 50, b: 50))
-  ];
+  final int minimalSlice;
+  
+  List<PieChartModel> _data;
+  int othersTime = 0;
+  
+  PieChart({this.minimalSlice});
+  
+  
+
 
   void loadDataFromProcStats(Map<String, ProcStats> stats) {
-    this.data = [];
+    this._data = [];
     stats.forEach((key, stat) {
-      data.add(new PieChartModel(
+      _data.add(new PieChartModel(
           name: stat.processName,
           time: stat.totalTime.inSeconds,
           color: PieChartModel.colorFromString(stat.processName)));
     });
+    this._data.sort((b, a) => a.time.compareTo(b.time));
+    joinSmallToOthers();
   }
 
   void loadDataFromAppStats(Map<String, AppStat> stats) {
-    this.data = [];
+    this._data = [];
     stats.forEach((key, stat) {
-      data.add(new PieChartModel(
+      _data.add(new PieChartModel(
           name: stat.appName,
           time: stat.totalTime.inSeconds,
           color: PieChartModel.colorFromString(stat.appName)));
     });
+    this._data.sort((b, a) => a.time.compareTo(b.time));
+    joinSmallToOthers();
+  }
+
+  void joinSmallToOthers() {
+    var totalTime = this._data.fold(0, (previousValue, element) => previousValue + element.time);
+    this._data.removeWhere((element) {
+      if ((element.time) < totalTime * minimalSlice / 100) {
+        othersTime += element.time;
+        return true;
+      } else {
+        return false;
+      }
+    });
+    this._data.add(new PieChartModel(
+      name: "Other",
+      time: othersTime,
+      color: charts.Color(r: 180, g: 180, b: 180)
+    ));
   }
 
   List<charts.Series<PieChartModel, String>> get series {
     var ret = [
       new charts.Series(
           id: "Time",
-          data: data,
+          data: _data,
           domainFn: (PieChartModel model, _) => model.name,
           // name
           measureFn: (PieChartModel model, _) => model.time,
@@ -96,22 +118,48 @@ class _PieChartWidgetState extends State<PieChartWidget> {
   Widget build(BuildContext context) {
     final notifier = Provider.of<UsageNotifier>(context);
     final stats = notifier.stats;
-    var _pieChart = PieChart();
+    final settings = notifier.settings;
 
-    return FutureBuilder<Map<String, ProcStats>>(
-        future: stats,
+    return FutureBuilder(
+        future: Future.wait([stats, settings]),
         builder: (context, snapshot) {
+
           // * load stats into chart data
-          if (this.widget.appStats != null) {
+          if (this.widget.appStats != null && snapshot.hasData) {
+            var _pieChart = PieChart(minimalSlice: int.parse(snapshot.data[1]["minimalSlice"]));
             _pieChart.loadDataFromAppStats(this.widget.appStats);
             return _pieChart.chartWidget;
           }
           else if (snapshot.hasData) {
-            _pieChart.loadDataFromProcStats(snapshot.data);
+            var _pieChart = PieChart(minimalSlice: int.parse(snapshot.data[1]["minimalSlice"]));
+            _pieChart.loadDataFromProcStats(snapshot.data[0]);
             return _pieChart.chartWidget;
           } else  {
             return Text("Chart loading");
           }
         });
+  }
+}
+
+class PieFooter extends StatefulWidget {
+  final Widget child;
+
+  PieFooter({this.child});
+
+  @override
+  _PieFooterState createState() => _PieFooterState();
+
+}
+
+class _PieFooterState extends State<PieFooter> {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: Theme.of(context).colorScheme.primary,
+      margin: EdgeInsets.symmetric(horizontal: 70, vertical: 20),
+      width: double.infinity,
+      height: 53,
+      child: this.widget.child,
+    );
   }
 }

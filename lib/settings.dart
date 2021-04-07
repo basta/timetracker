@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 import 'package:timetracker/appBar.dart';
 import 'package:timetracker/home.dart';
 import 'package:timetracker/sideNavigation.dart';
+import 'package:timetracker/usageNotifier.dart';
 
 class SettingsPage extends StatefulWidget {
   @override
@@ -108,11 +110,14 @@ class _SettingCardState extends State<SettingCard> {
 
 class SettingsTextInput extends StatelessWidget {
   final String label;
+  final String settingsKey;
 
-  SettingsTextInput({this.label});
+
+  SettingsTextInput({this.label, this.settingsKey});
 
   @override
   Widget build(BuildContext context) {
+    var notifier = Provider.of<UsageNotifier>(context);
     return Container(
       margin: EdgeInsets.symmetric(vertical: 3),
       height: 26,
@@ -124,6 +129,7 @@ class SettingsTextInput extends StatelessWidget {
           SizedBox(
               width: 100,
               child: TextField(
+                onChanged: (value) => notifier.updateSettings(this.settingsKey, value),
                 style: Theme.of(context).textTheme.bodyText2.copyWith(
                     color: Theme.of(context).colorScheme.primary, fontSize: 14),
                 textAlignVertical: TextAlignVertical.center,

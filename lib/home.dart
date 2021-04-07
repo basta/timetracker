@@ -8,6 +8,7 @@ import 'package:timetracker/usageNotifier.dart';
 import "package:provider/provider.dart";
 import 'package:sqflite/sqflite.dart';
 import "package:collection/collection.dart";
+import 'package:timetracker/usageNotifier.dart';
 
 import 'classes.dart';
 import 'package:timetracker/pie.dart';
@@ -15,10 +16,6 @@ import 'package:timetracker/pie.dart';
 import 'dart:async';
 import 'dart:developer';
 import 'dart:io';
-
-// * constants definitions
-const ACTIVITY_DELAY = 1;
-const MOUSE_DELAY = 60;
 
 class Home extends StatelessWidget {
   const Home({
@@ -44,12 +41,19 @@ class Home extends StatelessWidget {
                           Column(
                             children: [
                               Expanded(
-                                child: Container(width: constraints.maxWidth / 2, child: PieChartWidget()),
+                                child: Container(
+                                    decoration: BoxDecoration(
+                                        border: Border(
+                                            right: BorderSide(color: Theme.of(context).colorScheme.primary, width: 5))),
+                                    width: constraints.maxWidth / 2,
+                                    child: PieChartWidget()),
                               ),
-                              BreakButton()
                             ],
                           ),
-                          SizedBox(height: constraints.maxHeight, width: constraints.maxWidth / 2, child: AppUsage())
+                          SizedBox(
+                              height: constraints.maxHeight,
+                              width: constraints.maxWidth / 2,
+                              child: AppUsageContainer())
                         ],
                       ),
                     );
@@ -87,12 +91,16 @@ class _CurrentAppState extends State<CurrentApp> {
   void initState() {
     super.initState();
 
-    WidgetsBinding.instance.addPostFrameCallback((timeStamp) {
+    WidgetsBinding.instance.addPostFrameCallback((timeStamp) async {
       var notifier = Provider.of<UsageNotifier>(context, listen: false);
+      var settings = await notifier.settings;
+      var activityDelay = int.parse(settings["detectionInterval"]);
+      var mouseDelay = int.parse(settings["mouseDelay"]);
+
       Future<Database> database = notifier.db;
       Future<List<Use>> uses = notifier.uses;
 
-      Timer.periodic(Duration(seconds: ACTIVITY_DELAY), (timer) {
+      Timer.periodic(Duration(seconds: activityDelay), (timer) {
         if (!this.mounted) {
           return;
         }
@@ -110,7 +118,7 @@ class _CurrentAppState extends State<CurrentApp> {
         if (!ListEquality().equals(mousePos, _lastMousePos)) {
           _lastMousePos = mousePos;
           _lastMouseMovement = DateTime.now();
-        } else if (_lastMouseMovement.difference(DateTime.now()).inSeconds < -MOUSE_DELAY) {
+        } else if (_lastMouseMovement.difference(DateTime.now()).inSeconds < -mouseDelay) {
           setState(() {
             _isActive = false;
           });
@@ -144,7 +152,7 @@ class _CurrentAppState extends State<CurrentApp> {
           Use use = Use(
               appName: _currentApp,
               processName: _currentProcess,
-              useStart: DateTime.now().millisecondsSinceEpoch - ACTIVITY_DELAY * 1000,
+              useStart: DateTime.now().millisecondsSinceEpoch - activityDelay * 1000,
               useEnd: DateTime.now().millisecondsSinceEpoch);
 
           insertUse(use, database);
@@ -181,14 +189,94 @@ class _CurrentAppState extends State<CurrentApp> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Center(child: activityWidget,),
-          SizedBox(width: 50,),
+          Center(
+            child: activityWidget,
+          ),
+          SizedBox(
+            width: 50,
+          ),
           Center(child: Text.rich(TextSpan(text: "Application: $_currentApp"), textAlign: TextAlign.center)),
           SizedBox(
             width: 50,
           ),
           Center(child: Text.rich(TextSpan(text: "Process: $_currentProcess"), textAlign: TextAlign.center))
         ],
+      ),
+    );
+  }
+}
+
+class AppUsageContainer extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        AppUsageHeader(),
+        Expanded(child: AppUsage()),
+        //AppUsageFooter()
+      ],
+    );
+  }
+}
+
+class AppUsageFooter extends StatelessWidget {
+  const AppUsageFooter({
+    Key key,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: Theme.of(context).colorScheme.primaryVariant,
+      height: 50,
+      child: Row(
+        children: [],
+      ),
+    );
+  }
+}
+
+class AppUsageHeader extends StatelessWidget {
+  const AppUsageHeader({
+    Key key,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: Theme.of(context).colorScheme.primaryVariant,
+      height: 50,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        child: Row(
+          children: [
+            Text(
+              "Most used processes",
+              style: Theme.of(context).textTheme.headline5,
+            ),
+            Expanded(child: TimeRangePicker()),
+            Expanded(
+                child: Container(
+              height: 25,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      onChanged: (value) {
+                        Provider.of<UsageNotifier>(context, listen: false).reloadStats(textFilter: value);
+                      },
+                      decoration: InputDecoration(border: OutlineInputBorder(), filled: true, fillColor: Colors.white),
+                    ),
+                  ),
+                  Icon(
+                    Icons.search,
+                    color: Theme.of(context).colorScheme.onPrimary,
+                  ),
+                ],
+              ),
+            ))
+          ],
+        ),
       ),
     );
   }
@@ -213,6 +301,7 @@ class _AppUsageState extends State<AppUsage> {
         future: stats,
         builder: (context, snapshot) {
           _gridItems = [];
+          Widget content;
           //Sorted keys from stats
           if (snapshot.hasData) {
             var statsValue = snapshot.data.values.toList();
@@ -224,7 +313,7 @@ class _AppUsageState extends State<AppUsage> {
               _gridItems.add(AppUsageSingle(stat: value));
             });
           } else {
-            return Text("Loading data");
+            content = Center(child: Text("Loading data"));
           }
 
           return GridView.count(
@@ -351,6 +440,91 @@ class _AppUsageSingleState extends State<AppUsageSingle> {
               ),
             )
           ]))),
+    );
+  }
+}
+
+class TimeRangePicker extends StatefulWidget {
+  @override
+  _TimeRangePickerState createState() => _TimeRangePickerState();
+}
+
+class _TimeRangePickerState extends State<TimeRangePicker> {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: EdgeInsets.symmetric(horizontal: 10),
+      height: 20,
+      decoration: BoxDecoration(
+          border: Border(
+        top: BorderSide(width: 2, color: Theme.of(context).colorScheme.onSecondary),
+        bottom: BorderSide(width: 2, color: Theme.of(context).colorScheme.onSecondary),
+        left: BorderSide(width: 2, color: Theme.of(context).colorScheme.onSecondary),
+      )),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.start,
+        children: [
+          TimeRangePickerButton(label: "today"),
+          TimeRangePickerButton(
+            label: "week",
+          ),
+          TimeRangePickerButton(
+            label: "month",
+          ),
+          TimeRangePickerButton(
+            label: "all",
+          ),
+          // TODO: implement custom time range picker
+          // TimeRangePickerButton(
+          //   label: "custom",
+          // ),
+        ],
+      ),
+    );
+  }
+}
+
+// ignore: must_be_immutable
+class TimeRangePickerButton extends StatefulWidget {
+  final String label;
+  final Function() onPressedExtension;
+
+  TimeRangePickerButton({this.label, this.onPressedExtension});
+
+  @override
+  _TimeRangePickerButtonState createState() => _TimeRangePickerButtonState();
+}
+
+class _TimeRangePickerButtonState extends State<TimeRangePickerButton> {
+  @override
+  Widget build(BuildContext context) {
+    // * get decorations based on being selected
+    BoxDecoration defaultDecorations =
+        BoxDecoration(border: Border(right: BorderSide(width: 2, color: Theme.of(context).colorScheme.onSecondary)));
+    BoxDecoration decoration;
+    if (this.widget.label == Provider.of<UsageNotifier>(context).selectedTimerange) {
+      decoration = defaultDecorations.copyWith(color: Theme.of(context).colorScheme.primary);
+    } else {
+      decoration = defaultDecorations.copyWith(color: Theme.of(context).colorScheme.secondary);
+    }
+    return Expanded(
+      flex: 1,
+      child: TextButton(
+          onPressed: () {
+            Provider.of<UsageNotifier>(context, listen: false).reloadStats(timerangeFilter: this.widget.label);
+            //this.widget.onPressedExtension();
+          },
+          child: Container(
+            width: double.infinity,
+            height: double.infinity,
+            child: Center(
+                child: Text(
+              this.widget.label,
+              style: Theme.of(context).textTheme.bodyText1,
+            )),
+            decoration: decoration,
+          )),
     );
   }
 }
