@@ -1,0 +1,28 @@
+name: timetracker
+version: 0.1.0
+summary: Digital wellbeing for linux.
+description: TODO
+
+confinement: strict
+base: core18
+grade: devel
+
+slots:
+  dbus-timetracker: # adjust accordingly to your app name
+    interface: dbus
+    bus: session
+    name: org.bar.timetracker # adjust accordingly to your app name and
+    
+apps:
+  timetracker:
+    command: timetracker
+    extensions: [flutter-master] # Where "master" defines which Flutter channel to use for the build
+    plugs:
+    - network
+    slots:
+      - dbus-super-cool-app
+parts:
+  timetracker:
+    source: .
+    plugin: flutter
+    flutter-target: lib/main.dart # The main entry-point file of the application

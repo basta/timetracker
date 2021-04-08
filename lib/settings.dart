@@ -38,29 +38,31 @@ class _SettingsPageState extends State<SettingsPage> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   SettingsTextInput(
-                                    label:
-                                        "Interval between active app detection (in s): ",
+                                    label: "Interval between active app detection (in s): ",
+                                    settingsKey: "detectionInterval",
                                   ),
                                   SettingsTextInput(
-                                    label:
-                                        "Maximum time of mouse inactivity (in s): ",
+                                    label: "Maximum time of mouse inactivity (in s): ",
+                                    settingsKey: "mouseDelay",
                                   )
                                 ],
                               ),
                             ),
                             SettingCard(
                               title: "Pie chart settings",
-                              child: Column(children: [
-                                SettingsTextInput(label: "Minimal slice size (in %): ",)
-                              ],),
+                              child: Column(
+                                children: [
+                                  SettingsTextInput(
+                                    label: "Minimal slice size (in %): ",
+                                    settingsKey: "minimalSlice",
+                                  )
+                                ],
+                              ),
                             )
                           ],
                         ),
                       )),
-                      SizedBox(
-                          width: constraints.maxWidth / 2,
-                          height: constraints.maxHeight,
-                          child: AppUsage())
+                      SizedBox(width: constraints.maxWidth / 2, height: constraints.maxHeight, child: AppUsage())
                     ],
                   );
                 },
@@ -108,38 +110,56 @@ class _SettingCardState extends State<SettingCard> {
   }
 }
 
-class SettingsTextInput extends StatelessWidget {
+class SettingsTextInput extends StatefulWidget {
   final String label;
   final String settingsKey;
-
 
   SettingsTextInput({this.label, this.settingsKey});
 
   @override
+  _SettingsTextInputState createState() => _SettingsTextInputState();
+}
+
+class _SettingsTextInputState extends State<SettingsTextInput> {
+  @override
   Widget build(BuildContext context) {
     var notifier = Provider.of<UsageNotifier>(context);
-    return Container(
-      margin: EdgeInsets.symmetric(vertical: 3),
-      height: 26,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Text(label, style: Theme.of(context).textTheme.headline5),
-          SizedBox(
-              width: 100,
-              child: TextField(
-                onChanged: (value) => notifier.updateSettings(this.settingsKey, value),
-                style: Theme.of(context).textTheme.bodyText2.copyWith(
-                    color: Theme.of(context).colorScheme.primary, fontSize: 14),
-                textAlignVertical: TextAlignVertical.center,
-                decoration: InputDecoration(
-                    border: OutlineInputBorder(),
-                    filled: true,
-                    fillColor: Colors.white),
-              )),
-        ],
-      ),
+    return FutureBuilder(
+      future: notifier.settings,
+      builder: (context, snapshot) {
+        var _controller = TextEditingController();
+        if (snapshot.hasData) {
+          _controller.text = snapshot.data[this.widget.settingsKey];
+        } else if (snapshot.hasError){
+          _controller.text = "Error";
+        }
+        else {
+          _controller.text = "Loading from data";
+        }
+        return Container(
+          margin: EdgeInsets.symmetric(vertical: 3),
+          height: 26,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Text(widget.label, style: Theme.of(context).textTheme.headline5),
+              SizedBox(
+                  width: 100,
+                  child: TextField(
+                    controller: _controller,
+                    onChanged: (value) => notifier.updateSettings(this.widget.settingsKey, value),
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodyText2
+                        .copyWith(color: Theme.of(context).colorScheme.primary, fontSize: 14),
+                    textAlignVertical: TextAlignVertical.center,
+                    decoration: InputDecoration(border: OutlineInputBorder(), filled: true, fillColor: Colors.white),
+                  )),
+            ],
+          ),
+        );
+      },
     );
   }
 }
